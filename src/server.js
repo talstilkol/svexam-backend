@@ -4,35 +4,38 @@ import express from 'express';
 import mongoose from 'mongoose';
 
 const app = express();
-const port = Number(process.env.PORT || 4000);
-let mongoStatus = process.env.MONGO_URI ? 'connecting' : 'not-configured';
 
-app.use(cors({
-  origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173'
-}));
+app.use(cors({ origin: process.env.CLIENT_ORIGIN || '*' }));
 app.use(express.json());
 
-if (process.env.MONGO_URI) {
-  mongoose
-    .connect(process.env.MONGO_URI)
-    .then(() => {
-      mongoStatus = 'connected';
-      console.log('MongoDB connected');
-    })
-    .catch(error => {
-      mongoStatus = 'error';
-      console.error('MongoDB connection error:', error.message);
-    });
+// חיבור MongoDB — cached כדי שיעבוד גם ב-serverless (Vercel) וגם מקומית/Render
+let cached = global._mongoose;
+if (!cached) cached = global._mongoose = { promise: null };
+function connectDB() {
+  if (!cached.promise && process.env.MONGO_URI) {
+    cached.promise = mongoose
+      .connect(process.env.MONGO_URI)
+      .then((m) => { console.log('MongoDB connected'); return m; })
+      .catch((err) => { console.error('MongoDB error:', err.message); cached.promise = null; });
+  }
+  return cached.promise;
 }
+connectDB();
 
-app.get('/api/health', (_request, response) => {
-  response.json({
+app.get('/api/health', (_req, res) => {
+  res.json({
     ok: true,
     service: 'svExam backend',
-    mongo: mongoStatus
+    mongo: mongoose.connection.readyState === 1 ? 'connected' : 'connecting',
   });
 });
 
-app.listen(port, () => {
-  console.log(`svExam backend listening on http://localhost:${port}`);
-});
+// 🔴 במבחן: app.use('/api/books', booksRouter);
+
+// מקומית/Render — מאזין. על Vercel (serverless) — רק מייצא את ה-app.
+if (!process.env.VERCEL) {
+  const port = Number(process.env.PORT) || 4000;
+  app.listen(port, () => console.log(`svExam backend on http://localhost:${port}`));
+}
+
+export default app;

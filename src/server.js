@@ -2,6 +2,7 @@ import cors from 'cors';
 import 'dotenv/config';
 import express from 'express';
 import mongoose from 'mongoose';
+import moviesRouter from './routes/movies.js';
 
 const app = express();
 
@@ -30,7 +31,7 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-// 🔴 במבחן: app.use('/api/books', booksRouter);
+app.use('/movies', moviesRouter);
 
 // מקומית/Render — מאזין. על Vercel (serverless) — רק מייצא את ה-app.
 if (!process.env.VERCEL) {
